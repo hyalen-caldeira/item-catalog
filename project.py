@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, jsonify, url_for
+from flask import Flask, render_template, request, redirect, jsonify, url_for, flash
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from database_setup import Base, Restaurant, MenuItem
@@ -89,7 +89,11 @@ def gconnect():
         return response
 
     # Store the access token in the session for later use.
-    login_session['credentials'] = credentials
+    # login_session['credentials'] = credentials
+
+    # Store only the access token to avoid the following error:
+    # oauth2client.client.OAuth2Credentials object at ...> is not JSON serializable
+    login_session['credentials'] = credentials.access_token
     login_session['gplus_id'] = gplus_id
 
     # Get user info
@@ -138,6 +142,7 @@ def restaurantsJSON():
 @app.route('/')
 @app.route('/restaurant/')
 def showRestaurants():
+    print "HYALEN - 3"
     restaurants = session.query(Restaurant).all()
     # return "This page will show all my restaurants"
     return render_template('restaurants.html', restaurants=restaurants)
@@ -251,5 +256,7 @@ def deleteMenuItem(restaurant_id, menu_id):
     # return "This page is for deleting menu item %s" % menu_id
 
 if __name__ == '__main__':
+    # In order to use sessions you have to set a secret key.
+    app.secret_key = 'hyalen_super_secret_key'
     app.debug = True
     app.run(host='0.0.0.0', port=5000)

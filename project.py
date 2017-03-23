@@ -38,6 +38,7 @@ def showLogin():
 
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
+    print "Hyalen Moreira Caldeira ..."
     # Validate state token
     if request.args.get('state') != login_session['state']:
         response = make_response(json.dumps('Invalid state parameter.'), 401)
@@ -94,8 +95,13 @@ def gconnect():
         return response
 
     # Store the access token in the session for later use.
-    login_session['credentials'] = credentials
+    # login_session['credentials'] = credentials
+    # Store only the access token to avoid the following error:
+    # oauth2client.client.OAuth2Credentials object at ...> is not JSON serializable
+    print "Access Token %s" % credentials.access_token
+    login_session['access_token'] = credentials.access_token
     login_session['gplus_id'] = gplus_id
+    print "Access Token Again %s" % login_session.get('access_token')
 
     # Get user info
     userinfo_url = "https://www.googleapis.com/oauth2/v1/userinfo"
@@ -144,23 +150,29 @@ def getUserID(email):
 # DISCONNECT - Revoke a current user's token and reset their login_session
 @app.route('/gdisconnect')
 def gdisconnect():
-        # Only disconnect a connected user.
-    credentials = login_session.get('credentials')
+    # Only disconnect a connected user.
+    # credentials = login_session.get('credentials')
+    access_token = login_session.get('access_token')
 
-    if credentials is None:
+    if access_token is None:
         response = make_response(
             json.dumps('Current user not connected.'), 401)
         response.headers['Content-Type'] = 'application/json'
         return response
 
-    access_token = credentials.access_token
+    # access_token = credentials.access_token
+
+    print access_token
+
     url = 'https://accounts.google.com/o/oauth2/revoke?token=%s' % access_token
     h = httplib2.Http()
     result = h.request(url, 'GET')[0]
 
     if result['status'] == '200':
+        print "VOU RESETAR ..."
         # Reset the user's sesson.
         del login_session['credentials']
+        del login_session['access_token']
         del login_session['gplus_id']
         del login_session['username']
         del login_session['email']
@@ -250,8 +262,9 @@ def deleteRestaurant(restaurant_id):
 @app.route('/restaurant/<int:restaurant_id>/menu/')
 def showMenu(restaurant_id):
     restaurant = session.query(Restaurant).filter_by(id=restaurant_id).one()
-    items = session.query(MenuItem).filter_by(
-        restaurant_id=restaurant_id).all()
+
+    items = session.query(MenuItem).filter_by(restaurant_id=restaurant_id).all()
+
     return render_template('menu.html', items=items, restaurant=restaurant)
 
 # Create a new menu item
@@ -259,7 +272,9 @@ def showMenu(restaurant_id):
 def newMenuItem(restaurant_id):
     if 'username' not in login_session:
         return redirect('/login')
+
     restaurant = session.query(Restaurant).filter_by(id=restaurant_id).one()
+
     if request.method == 'POST':
         newItem = MenuItem(name=request.form['name'], description=request.form['description'], price=request.form[
                            'price'], course=request.form['course'], restaurant_id=restaurant_id, user_id=restaurant.user_id)
@@ -288,9 +303,12 @@ def editMenuItem(restaurant_id, menu_id):
             editedItem.price = request.form['price']
         if request.form['course']:
             editedItem.course = request.form['course']
+
         session.add(editedItem)
         session.commit()
+
         flash('Menu Item Successfully Edited')
+
         return redirect(url_for('showMenu', restaurant_id=restaurant_id))
     else:
         return render_template('edit_menu_item.html', restaurant_id=restaurant_id, menu_id=menu_id, item=editedItem)
